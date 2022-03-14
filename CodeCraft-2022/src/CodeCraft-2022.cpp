@@ -1,17 +1,14 @@
-#include<iostream>
-#include<fstream>
-#include<string>
-#include<vector>
-#include<sstream>
+
 #include"config.h"
-using namespace std;
+#include"CodeCraft-2022.h"
+
 string file_root = "data/";
 string file_Demand = "demand.csv";
 string file_Bandwidth = "site_bandwidth.csv";
 string file_qos = "qos.csv";
 string file_config = "config.ini";
 
-
+//String  split
 std::vector<std::string> stringSplit(const std::string& str, char delim) {
 	std::stringstream ss(str);
 	std::string item;
@@ -24,12 +21,7 @@ std::vector<std::string> stringSplit(const std::string& str, char delim) {
 	return elems;
 }
 
-class DatasStruct {
-public:
-	vector<string> headName;
-	vector<vector< string>> Datas;
-};
-
+//获得数据
 DatasStruct GetData(string filepath)
 {
 	DatasStruct tempData;
@@ -39,7 +31,6 @@ DatasStruct GetData(string filepath)
 	bool Head = true;
 	while (infile.good())
 	{
-
 		string value;
 		getline(infile, value);
 		data = stringSplit(value, ',');
@@ -56,11 +47,13 @@ DatasStruct GetData(string filepath)
 }
 
 
-int main() {
-
+int main()
+{
+    UserManage usermanage;
+    NodeManage nodemanage;
 	//获取客户宽带需求
 	DatasStruct UserWidths = GetData(file_root + file_Demand);
-
+    
 	//获取边缘节点带宽数
 	DatasStruct NodeWidths =  GetData(file_root + file_Bandwidth);
 
@@ -76,6 +69,7 @@ int main() {
 		cout<<"ERROR | parse the ini file failed.";
 		return EC_ERROR;
 	}
+    //获得qos
 	int qos = config["qos_constraint"].as_int();
 	return 0;
 }
