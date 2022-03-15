@@ -10,6 +10,9 @@
 #include<vector>
 #include<sstream>
 #include<map>
+#include<set>
+#include<algorithm>
+#include<numeric>
 using namespace std;
 //一般数据格式内容
 class DatasStruct {
@@ -19,53 +22,47 @@ public:
 };
 
 //用户类
-class USer
+class User
 {
+
 private:
-    string Username;
-    map<string,int> NodeWidth; //用户带宽需求
-    map<string,int> Qosnode;//用户最大时延
+	string username;
 public:
-    USer();
-    ~USer();
-    void SetUseranme(string name); //设置用户名
-    void SetNodeWith(string ,int); //设置带宽需求
-    void SetQosnodes();//设置时延
+	//用户的不同时刻 节点分配带宽
+	map<int, map<string, int>> Node_width;
+	void SetUsername(string name);
+	string GetUsername();
 };
-//节点类
+
+
+
 class Node
 {
 private:
-    string NodeName;//节点名称
-    int Max_Qos;//最大负载
+	int Width;
+	string NodeName;
+
 public:
-    Node();
-    ~Node();
-    void SetNodeName(string &);//设置节点名称
-    void SetMax_Qos(int);//设置最大负载
-};
-//用户管理类
-class UserManage
-{
-private:
-    map<string,USer> UserDatas;
-public:
-    UserManage();
-    ~UserManage();
-    USer * GetUser(string &);
-    void AppendUser(USer &);
+
+	map<int, int> Alloctime; //记录某一时刻分配权重
+
+
+
+	int max_size;
+	int Min_sum;
+	set <string > UsefulUser;//记录该节点可分配用户
+
+
+	//int Get_MinTime();//获得最大队列最小分配权重时刻
+	//int Get_MinRate();//获得最大队列最小权重
+
+	void SetTimes(int times); //设置时刻数
+	void SetWidth(int width) { Width = width; };//设置带宽 
+	void SetMaxSize(int size) { max_size = size; };//设置最大队列分配权重
+	bool IsEffectNode(string username);//根据给出的用户 返回该节点是否可用
+	void AssignedWidth(int time, int witdh, string username);//根据时刻指派带宽 并记录分配的用户
+	void SetNondeName(string name);
 };
 
-//节点管理类
-class NodeManage
-{
-private:
-    map<string,Node> UserDatas;
-public:
-    NodeManage();
-    ~NodeManage();
-    Node * GetNode(string &);
-    void AppendNode(Node &);
-};
 
 #endif

@@ -4,6 +4,7 @@
         "istream": "cpp",
         "iostream": "cpp",
         "fstream": "cpp",
-        "map": "cpp"
+        "map": "cpp",
+        "xstring": "cpp"
     }
 }
