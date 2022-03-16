@@ -5,6 +5,10 @@
         "iostream": "cpp",
         "fstream": "cpp",
         "map": "cpp",
-        "xstring": "cpp"
+        "xstring": "cpp",
+        "iosfwd": "cpp",
+        "regex": "cpp",
+        "vector": "cpp",
+        "xutility": "cpp"
     }
 }

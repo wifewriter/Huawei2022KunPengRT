@@ -1,15 +1,15 @@
 
 #include"config.h"
 #include"CodeCraft-2022.h"
-
+#include <regex>
 
 using namespace std;
-string file_root = "data/";
+string file_root = "../data/";
 string file_Demand = "demand.csv";
 string file_Bandwidth = "site_bandwidth.csv";
 string file_qos = "qos.csv";
 string file_config = "config.ini";
-string file_output = "output.txt";
+string file_output = "../output/solution.txt";
 
 //*************************************全局变量******************************************//
 map<string, User* >Alluser;
@@ -66,7 +66,17 @@ std::vector<std::string> stringSplit(const std::string& str, char delim) {
 	return elems;
 }
 
-
+//去除换行符
+void strim(string &str)
+{
+	for (int i = 0; i < str.size(); i++)
+	{
+		if ( str[i] == '\n' || str[i] == '\r' )
+		{
+			str.erase(str.begin()+i);
+		}
+	}	
+}
 
 DatasStruct GetData(string filepath)
 {
@@ -80,9 +90,12 @@ DatasStruct GetData(string filepath)
 
 		string value;
 		getline(infile, value);
+		
 		data = stringSplit(value, ',');
 		if (Head)
 		{
+
+			strim(data[data.size()-1]);
 			tempData.headName = data;
 			Head = false;
 		}
@@ -168,6 +181,7 @@ int main() {
 	for (int i = 1; i < UserWidths.headName.size(); i++)
 	{
 		User* New_user = new User;
+	
 		New_user->SetUsername(UserWidths.headName[i]);
 		Alluser[UserWidths.headName[i]] = New_user;
 	}
@@ -184,6 +198,7 @@ int main() {
 		new_node->max_size = MaxTimes;
 		new_node->SetWidth(atoi(NodeWidths.Datas[i][1].c_str()));
 		new_node->SetNondeName(NodeWidths.Datas[i][0]);
+		// cout<<to_string(NodeWidths.Datas[i][0].size())<<endl;
 		new_node->SetTimes(NeedTimes);
 		AllNodes[NodeWidths.Datas[i][0]] = new_node;
 	}
@@ -227,7 +242,7 @@ int main() {
 				
 			}
 			outfile << one_string.c_str();
-			outfile << "\r\n";
+			outfile << "\n";
 		}
 		times++;
 	}
