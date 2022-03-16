@@ -9,6 +9,8 @@
         "iosfwd": "cpp",
         "regex": "cpp",
         "vector": "cpp",
-        "xutility": "cpp"
+        "xutility": "cpp",
+        "set": "cpp",
+        "utility": "cpp"
     }
 }
