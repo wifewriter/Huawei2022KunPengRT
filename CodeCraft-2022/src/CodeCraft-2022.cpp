@@ -1,15 +1,3 @@
-
-// #include"config.h"
-// #include"CodeCraft-2022.h"
-
-
-// string file_root = "../data/";
-// string file_Demand = "demand.csv";
-// string file_Bandwidth = "site_bandwidth.csv";
-// string file_qos = "qos.csv";
-// string file_config = "config.ini";
-// string file_output = "../output/solution.txt";
-
 #include<random>
 #include<iostream>
 #include<fstream>
@@ -20,7 +8,24 @@
 #include<set>
 #include<algorithm>
 #include<numeric>
+#include<unordered_map>
+#include<thread>
 using namespace std;
+
+
+
+using namespace std;
+//作品提交路径
+string file_root = "/data/";
+string file_Demand = "demand.csv";
+string file_Bandwidth = "site_bandwidth.csv";
+string file_qos = "qos.csv";
+string file_config = "config.ini";
+string file_output = "/output/solution.txt";
+
+
+
+
 
 //一般数据格式内容
 class DatasStruct {
@@ -35,13 +40,16 @@ class User
 
 private:
 	string username;
-	
+
 public:
 	//用户的不同时刻 节点分配带宽
-	map<int, map<string, int>> Node_width;
+	//vector<int, unordered_map<string, int>> Node_width;
+	vector<unordered_map<string,int>> Node_width;
 	void SetUsername(string name);
 	string GetUsername();
 	set<string> UsefulNode;
+	void InitUsertime(int times);
+	unordered_map<string, int>* getTimedata(int time) { return &Node_width[time]; };
 };
 
 
@@ -53,8 +61,8 @@ private:
 	string NodeName;
 
 public:
-
-	map<int, int> Alloctime; //记录某一时刻分配权重
+	unordered_map<int, int> Alloctime; //记录某一时刻分配权重
+	vector<int> UsefulUser_index; //可用用户节点序号
 	int max_size;
 	int Min_sum;
 	set <string > UsefulUser;//记录该节点可分配用户
@@ -66,24 +74,15 @@ public:
 	void SetTimes(int times); //设置时刻数
 	void SetWidth(int width) { Width = width; };//设置带宽 
 	void SetMaxSize(int size) { max_size = size; };//设置最大队列分配权重
-	bool IsEffectNode(string username);//根据给出的用户 返回该节点是否可用
-	void AssignedWidth(int time, int witdh, string username);//根据时刻指派带宽 并记录分配的用户
-	void SetNondeName(string name);
-	string GetNodeName(){return NodeName;};
+	bool IsEffectNode(string &username);//根据给出的用户 返回该节点是否可用
+	void AssignedWidth(int &time, int &witdh, string &username);//根据时刻指派带宽 并记录分配的用户
+	void SetNondeName(string &name);
+	string GetNodeName() { return NodeName; };
 };
 
-using namespace std;
-//作品提交路径
-string file_root = "/data/";
-string file_Demand = "demand.csv";
-string file_Bandwidth = "site_bandwidth.csv";
-string file_qos = "qos.csv";
-string file_config = "config.ini";
-string file_output = "/output/solution.txt";
-
 //*************************************全局变量******************************************//
-map<string, User* >Alluser;
-map<string, Node*> AllNodes;
+unordered_map<string, User* >Alluser;
+unordered_map<string, Node*> AllNodes;
 string output_data;
 //*************************************全局变量******************************************//
 
@@ -95,7 +94,10 @@ string User::GetUsername()
 {
 	return username;
 }
-
+void User::InitUsertime(int times)
+{
+		Node_width.resize(times);
+}
 
 void Node::SetTimes(int times)
 {
@@ -105,25 +107,25 @@ void Node::SetTimes(int times)
 	}
 }
 
-void  Node::SetNondeName(string name)
+void  Node::SetNondeName(string& name)
 {
 	NodeName = name;
 }
-bool Node::IsEffectNode(string username)
+bool Node::IsEffectNode(string& username)
 {
 	if (UsefulUser.find(username) != UsefulUser.end())
 		return true;
 	return false;
 }
 
-void Node::AssignedWidth(int time, int width, string username)
+void Node::AssignedWidth(int& time, int& width, string& username)
 {
 
 	Alloctime[time] -= width;
 	User* Target_user = Alluser[username];
-	if (Target_user != nullptr)
-		Target_user->Node_width[time][NodeName] = width;
-	
+	//if (Target_user != nullptr)
+	//	Target_user->Node_width[time][NodeName] = width;
+
 }
 //字符串切割方法
 std::vector<std::string> stringSplit(const std::string& str, char delim) {
@@ -145,7 +147,7 @@ void strim(string& str)
 	if (str[Pos] == '\n' || str[Pos] == '\r')
 	{
 		str.erase(str.begin() + Pos);
-	}	
+	}
 }
 
 DatasStruct GetData(string filepath)
@@ -208,7 +210,7 @@ vector<int> Random_Choose(vector<int>& Datas, int n)
 	return Radoms;
 }
 //选择一个节点
-void ChooseNode(vector<string>& One_line, int time, vector<string> Usernames)
+void ChooseNode(int time, vector<string>& One_line, vector<string>& Usernames)
 {
 	//简单分配法
 	for (int k = 1; k < One_line.size(); k++)
@@ -228,7 +230,8 @@ void ChooseNode(vector<string>& One_line, int time, vector<string> Usernames)
 			if (Now_Node->Alloctime[time] > People_Require)
 			{
 				Now_Node->AssignedWidth(time, People_Require, Username);
-				output_data = output_data + "<" + Now_Node->GetNodeName() + "," + to_string(People_Require) + ">";
+				//output_data = output_data + "<" + Now_Node->GetNodeName() + "," + to_string(People_Require) + ">";
+				this_user->Node_width[time][Now_Node->GetNodeName()] += People_Require;
 				People_Require = 0;
 				break;
 			}
@@ -236,9 +239,10 @@ void ChooseNode(vector<string>& One_line, int time, vector<string> Usernames)
 			{
 				Now_Node->AssignedWidth(time, Now_Node->Alloctime[time], Username);
 				People_Require -= Now_Node->Alloctime[time];
-				output_data = output_data + "<" + Now_Node->GetNodeName() + "," + to_string(People_Require) + ">" + ",";
+				//output_data = output_data + "<" + Now_Node->GetNodeName() + "," + to_string(People_Require) + ">" + ",";
+				this_user->Node_width[time][Now_Node->GetNodeName()] += People_Require;
 			}
-			rand_choose = (rand_choose +1)% UsefulNode.size();
+			rand_choose = (rand_choose + 1) % UsefulNode.size();
 		}
 		output_data = output_data + "\r\n";
 	}
@@ -247,43 +251,44 @@ void ChooseNode(vector<string>& One_line, int time, vector<string> Usernames)
 }
 
 //平均分配法
-void AverageChoose(vector<string>& One_line, int time, vector<string> Usernames)
+void AverageChoose(int time, vector<string>& One_line, vector<string>& Usernames)
 {
-	for (int k = 1; k < One_line.size(); k++)
-	{
-		int People_Require = atoi(One_line[k].c_str());
-		string Username = Usernames[k];
 
-		output_data = output_data + Username + ":";
-		User* this_user = Alluser[Username];
-		int Max_size = this_user->UsefulNode.size();
-		int Width = People_Require / Max_size;  //获得平均值
-		int res = People_Require % Max_size; //获得余下的带宽
-		set<string> Nodesname = this_user->UsefulNode;
-		bool first = true;
-		int count = 0;
-		for (auto i = Nodesname.begin(); i != Nodesname.end(); i++)
+	for (auto Node = AllNodes.begin(); Node != AllNodes.end(); Node++)
+	{
+		vector<int> Usefulpeople = Node->second->UsefulUser_index;
+		string NodeName = Node->second->GetNodeName();
+		int this_node_width = 0;//这个节点分配带宽
+		int res_width= 0;
+		for (int i = 0; i < Usefulpeople.size(); i++)
 		{
-			Node* this_node = AllNodes[*i];
-			if (first)
-			{
-				this_node->AssignedWidth(time, Width + res, Username);
-				output_data = output_data + "<" + this_node->GetNodeName() + "," + to_string(Width + res) + ">";
-				if (count != Max_size - 1)
-					output_data += ",";
-				first = false;
-			}
-			else
-			{
-				this_node->AssignedWidth(time, Width, Username);
-				output_data = output_data + "<" + this_node->GetNodeName() + "," + to_string(Width) + ">";
-				if (count != Max_size - 1)
-					output_data += ",";
-			}
-			count++;
+			int peopele_index = Usefulpeople[i];
+			User* this_user = Alluser[Usernames[peopele_index]]; //获取当前用户
+			int People_Require = atoi(One_line[peopele_index].c_str());
+			//获取当前用户可用节点数
+			int Node_size = this_user->UsefulNode.size();
+			//获得每个节点平均取值
+			int Width = People_Require / Node_size;
+			//余下带宽
+			int res = People_Require % Node_size;
+			res_width += res;
+			this_node_width += Width;
+			//将该时刻输出放入用户的输出中
+			unordered_map<string, int> * Pp = &(this_user->Node_width[time]);
+			(*Pp)[NodeName] += Width;
+			if (Node == AllNodes.begin())
+				(*Pp)[NodeName] += res;
+
 		}
-		output_data = output_data + "\r\n";
+		if (Node == AllNodes.begin())
+		{
+			//加上余下带宽
+			this_node_width += res_width;
+			
+		}
 	}
+
+	
 }
 //读取ini文件中的配置
 int ReadQos(string filepath)
@@ -294,9 +299,63 @@ int ReadQos(string filepath)
 	string Result;
 	if (position != Qos.npos)
 	{
-		Result = Qos.substr(position+1, Qos.size());
+		Result = Qos.substr(position + 1, Qos.size());
 	}
 	return atoi(Result.c_str());
+}
+
+
+
+void DealOneAlg(int min_index, int max_index, vector<vector<string>>& Datas, vector<string>& Usernames, unordered_map<int, bool>& MaxTimesOrNot)
+{
+	for (int i = min_index; i < max_index; i++)
+	{
+
+		// if (MaxTimesOrNot[i] == true)
+		// {
+		// 	ChooseNode(i, Datas[i], Usernames);
+		// }
+		// //调用其他分配方案
+		// else
+		// {
+			AverageChoose(i, Datas[i], Usernames);
+		// }
+	}
+
+	return;
+}
+void test()
+{
+	return;
+}
+
+void Out(int NeedTimes)
+{
+	//输出结果
+	ofstream outfile(file_output);
+
+	int Nowtime = 0;
+	while (Nowtime < NeedTimes)
+	{
+		for (auto user = Alluser.begin(); user != Alluser.end(); user++)
+		{
+			outfile << user->second->GetUsername() << ":";
+			unordered_map<string, int>* PPt = user->second->getTimedata(Nowtime);
+			int count = 0;
+			for (auto node = PPt->begin(); node != PPt->end(); node++)
+			{
+				outfile << "<" << node->first << "," << node->second << ">";
+				if (count < PPt->size() - 1)
+				{
+					outfile << ",";
+				}
+				count++;
+			}
+			outfile << endl;
+		}
+		Nowtime++;
+	}
+	outfile.close();
 }
 int main() {
 
@@ -311,7 +370,7 @@ int main() {
 
 
 	//获取config
-	int qos = ReadQos(file_root+ file_config);
+	int qos = ReadQos(file_root + file_config);
 
 
 	//初始化用户
@@ -325,7 +384,7 @@ int main() {
 
 	//获取需要分配时间的数量
 	int NeedTimes = UserWidths.Datas.size();
-	int MaxTimes = NeedTimes * 0.05 ;
+	int MaxTimes = NeedTimes * 0.05;
 
 	//初始化用户可用节点
 	for (int i = 0; i < PeopleQos.Datas.size(); i++)
@@ -335,6 +394,7 @@ int main() {
 			if (atoi(PeopleQos.Datas[i][j].c_str()) < qos)
 			{
 				Alluser[PeopleQos.headName[j]]->UsefulNode.insert(PeopleQos.Datas[i][0]);
+				Alluser[PeopleQos.headName[j]]->InitUsertime(NeedTimes);
 			}
 	}
 
@@ -347,23 +407,26 @@ int main() {
 		new_node->SetNondeName(NodeWidths.Datas[i][0]);
 		// cout<<to_string(NodeWidths.Datas[i][0].size())<<endl;
 		new_node->SetTimes(NeedTimes);
+		
 		AllNodes[NodeWidths.Datas[i][0]] = new_node;
+
 	}
 
 	//初始化Node可用用户
-	//for (int i = 0; i < PeopleQos.Datas.size(); i++)
-	//{
-	//	for (int j = 1; j < PeopleQos.Datas[i].size(); j++)
-	//		//延迟小于阈值
-	//		if (atoi(PeopleQos.Datas[i][j].c_str()) < qos)
-	//		{
-	//			AllNodes[PeopleQos.Datas[i][0]]->UsefulUser.insert(PeopleQos.headName[j]);
-	//		}
-	//}
+	for (int i = 0; i < PeopleQos.Datas.size(); i++)
+	{
+		for (int j = 1; j < PeopleQos.Datas[i].size(); j++)
+			//延迟小于阈值
+			if (atoi(PeopleQos.Datas[i][j].c_str()) < qos)
+			{
+				AllNodes[PeopleQos.Datas[i][0]]->UsefulUser.insert(PeopleQos.headName[j]);
+				AllNodes[PeopleQos.Datas[i][0]]->UsefulUser_index.push_back(j);
+			}
+	}
 
 	srand((unsigned)time(0));
 	vector<int> Times;
-	map<int, bool> MaxTimesOrNot;//存储是否为最大5%分配节点
+	unordered_map<int, bool> MaxTimesOrNot;//存储是否为最大5%分配节点
 	//初始化时间分配节点
 	for (int i = 0; i < NeedTimes; i++)
 	{
@@ -376,35 +439,36 @@ int main() {
 		MaxTimesOrNot[TargetTimes[i]] = true;
 	}
 
-	//节点的分配数据
-	for (int time = 0; time < UserWidths.Datas.size(); time++)
-	{
-		// //调用最大分配法
-		if (MaxTimesOrNot[time] != true)
-		{
-			ChooseNode(UserWidths.Datas[time], time, UserWidths.headName);
-		}
-		// // 调用其他分配方案
-		else
-		{
-			AverageChoose(UserWidths.Datas[time], time, UserWidths.headName);
-		}
+
+	//对时间戳进行2分处理
+	int min_time = 0;
+	int max_time = UserWidths.Datas.size() ;
+	int mid_time = (min_time + max_time) / 2;
+	// // thread b(test);
+	// // b.join();
+	// thread a(DealOneAlg,min_time,mid_time,std::ref(UserWidths.Datas),std::ref(UserWidths.headName),std::ref(MaxTimesOrNot));
+	// thread b(DealOneAlg,mid_time,max_time+1,std::ref(UserWidths.Datas),std::ref(UserWidths.headName),std::ref(MaxTimesOrNot));
+	// a.join();
+	// b.join();
+
+	time_t start_time(NULL);
+	DealOneAlg(0, max_time, UserWidths.Datas, UserWidths.headName, MaxTimesOrNot);
+	time_t end_time(NULL);
+
+	cout << "算法时间:" << end_time - start_time << endl;
 	
-	}
+	//输出文件
+	Out(NeedTimes);
 
-
-	//输出结果
-	ofstream outfile(file_output);
-	// outfile << output_data;
-	outfile.close();
-	for(auto i=AllNodes.begin();i!=AllNodes.end();i++)
+	for (auto i = AllNodes.begin(); i != AllNodes.end(); i++)
 	{
 		delete (*i).second;
 	}
 
-	for(auto i=Alluser.begin();i!=Alluser.end();i++)
+	for (auto i = Alluser.begin(); i != Alluser.end(); i++)
 	{
 		delete (*i).second;
 	}
 	return 0;
 }
+
