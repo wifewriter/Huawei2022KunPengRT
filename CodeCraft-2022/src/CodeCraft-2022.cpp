@@ -212,12 +212,12 @@ vector<int> Random_Choose(vector<int>& Datas, int n)
 //选择一个节点
 void ChooseNode(int time, vector<string>& One_line, vector<string>& Usernames)
 {
-	//简单分配法
+	//全分配法
 	for (int k = 1; k < One_line.size(); k++)
 	{
 		int People_Require = atoi(One_line[k].c_str());
 		string Username = Usernames[k];
-		output_data = output_data + Username + ":";
+		//output_data = output_data + Username + ":";
 		User* this_user = Alluser[Username];
 		int rand_choose = rand() % this_user->UsefulNode.size();
 		set<string> UsefulNode = this_user->UsefulNode;
@@ -244,7 +244,7 @@ void ChooseNode(int time, vector<string>& One_line, vector<string>& Usernames)
 			}
 			rand_choose = (rand_choose + 1) % UsefulNode.size();
 		}
-		output_data = output_data + "\r\n";
+		//output_data = output_data + "\r\n";
 	}
 
 
@@ -253,13 +253,13 @@ void ChooseNode(int time, vector<string>& One_line, vector<string>& Usernames)
 //平均分配法
 void AverageChoose(int time, vector<string>& One_line, vector<string>& Usernames)
 {
-
-	for (auto Node = AllNodes.begin(); Node != AllNodes.end(); Node++)
+	vector<unordered_map<User*, int> >Rest_Width; //记录当前时刻的余留带宽
+	for (auto tNode = AllNodes.begin(); tNode != AllNodes.end(); tNode++)
 	{
-		vector<int> Usefulpeople = Node->second->UsefulUser_index;
-		string NodeName = Node->second->GetNodeName();
-		int this_node_width = 0;//这个节点分配带宽
-		int res_width= 0;
+		vector<int> Usefulpeople = tNode->second->UsefulUser_index;
+		Node * This_node = tNode->second;
+		string NodeName = tNode->second->GetNodeName();
+
 		for (int i = 0; i < Usefulpeople.size(); i++)
 		{
 			int peopele_index = Usefulpeople[i];
@@ -270,21 +270,60 @@ void AverageChoose(int time, vector<string>& One_line, vector<string>& Usernames
 			//获得每个节点平均取值
 			int Width = People_Require / Node_size;
 			//余下带宽
-			int res = People_Require % Node_size;
-			res_width += res;
-			this_node_width += Width;
-			//将该时刻输出放入用户的输出中
-			unordered_map<string, int> * Pp = &(this_user->Node_width[time]);
-			(*Pp)[NodeName] += Width;
-			if (Node == AllNodes.begin())
-				(*Pp)[NodeName] += res;
+			int res_width = People_Require % Node_size;
+			//将余留带宽加入剩余带宽容器
+			if (res_width != 0)
+			{
+				unordered_map<User*, int> New_res;
+				New_res[this_user] = res_width;
+				Rest_Width.push_back(New_res);
+			}
 
-		}
-		if (Node == AllNodes.begin())
-		{
-			//加上余下带宽
-			this_node_width += res_width;
-			
+			//将该时刻用户的输出
+			unordered_map<string, int>* Pp = &(this_user->Node_width[time]);
+			//考虑该均值带宽是否满足最大带宽要求
+			int Node_Width = This_node->Alloctime[time];
+			//当带宽小于均值时
+			if (Node_Width < Width)
+			{
+				This_node->Alloctime[time] -= Node_Width;
+				unordered_map<User*, int> New_res;
+				New_res[this_user] = Width - Node_Width;
+				Rest_Width.push_back(New_res);
+				(*Pp)[NodeName] += Node_Width;
+			}
+			//当带宽大于等于均值时
+			else if (Node_Width >= Width)
+			{
+				This_node->Alloctime[time] -= Width;
+				(*Pp)[NodeName] += Width;
+				//顺便考虑将余下带宽使用
+				if (This_node->Alloctime[time] != 0)
+				{
+					for (int res_size = Rest_Width.size() - 1; res_size >= 0; res_size--)
+					{
+						unordered_map<User*, int> this_res = Rest_Width[res_size];
+						User* Rest_User = this_res.begin()->first;
+						int Res_Widths = this_res.begin()->second;
+						//如果余下的带宽比该节点的带宽小
+						if (Res_Widths <= This_node->Alloctime[time])
+						{
+							This_node->Alloctime[time] -= Res_Widths;
+							Rest_User->Node_width[time][NodeName] += Res_Widths; //分配完毕 删除该节点
+							Rest_Width.pop_back();
+						}
+						//如果余下节点的带宽比该节点带宽大 分配部分
+						else if (Res_Widths > This_node->Alloctime[time])
+						{
+							This_node->Alloctime[time] -= This_node->Alloctime[time];
+							Rest_User->Node_width[time][NodeName] += This_node->Alloctime[time];
+							this_res.begin()->second -= This_node->Alloctime[time];
+						}
+					}
+				}
+
+			}
+
 		}
 	}
 
@@ -311,15 +350,15 @@ void DealOneAlg(int min_index, int max_index, vector<vector<string>>& Datas, vec
 	for (int i = min_index; i < max_index; i++)
 	{
 
-		// if (MaxTimesOrNot[i] == true)
-		// {
-		// 	ChooseNode(i, Datas[i], Usernames);
-		// }
-		// //调用其他分配方案
-		// else
-		// {
+		if (MaxTimesOrNot[i] == true)
+		{
+			ChooseNode(i, Datas[i], Usernames);
+		}
+		//调用其他分配方案
+		else
+		{
 			AverageChoose(i, Datas[i], Usernames);
-		// }
+		}
 	}
 
 	return;
@@ -471,4 +510,3 @@ int main() {
 	}
 	return 0;
 }
-
