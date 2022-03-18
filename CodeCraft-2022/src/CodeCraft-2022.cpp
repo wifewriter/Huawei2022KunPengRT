@@ -9,7 +9,6 @@
 #include<algorithm>
 #include<numeric>
 #include<unordered_map>
-#include<thread>
 using namespace std;
 
 
@@ -27,7 +26,6 @@ string file_output = "/output/solution.txt";
 
 
 
-
 //一般数据格式内容
 class DatasStruct {
 public:
@@ -39,24 +37,11 @@ class User
 {
 
 private:
-	//用户的需求分配结果
-	unordered_map<string, int> Node_width;
 	//用户的需求带宽
 	int Need_width;
 	//用户可用节点数（可变）
 	int Usefulsize;
 public:
-	
-	//设置分配结果
-	void Set_Width(string& nodename, int width) { Node_width[nodename] = width; };
-	//获得目标节点分配结果
-	int Get_Width(string& nodename) { return Node_width[nodename]; };
-	//增加、减少目标分配结果
-	void ADDWidth(string& nodename, int width) { Node_width[nodename] += width; Need_width -= width; };
-	//设置当前用户可用节点数量
-	void Set_UsefulSize(int size) { Usefulsize = size; };
-	//获得当前用户可用节点数量
-	int Get_UsefulSize() { return Usefulsize; };
 	//获得用户当前时刻下带宽需求
 	int GetNeed_width() { return Need_width; };
 	//设置用户当前时刻下带宽需求
@@ -87,27 +72,15 @@ class UserManage
 private:
 	//所有用户名
 	vector<string> Usernames;
-	//不同时刻下的用户
-	vector<unordered_map<string, User *>> Time_User; 
+	//不同时刻用户所需带宽
+	vector<unordered_map<string,int>> WidthNeed;
 public:
-	//设置最大存储时刻
-	void InitTimes(int time) { Time_User.resize(time); } 
-	//获取该时刻下的指定用户
-	User* GetUser(string& name,int time) { return Time_User[time][name]; };
-	//获取该时刻下所有用户
-	unordered_map<string, User *>* GetUserMap(int time) { return &Time_User[time]; };
-	//将所有时刻下的用户初始化
-	void Append_User(User* user, string name) 
-	{
-		for (int i = 0; i < Time_User.size(); i++)
-		{
-			User * time_user = new User;
-			*time_user = *user;
-			Time_User[i][name] = time_user;
-		}
-		Usernames.push_back(name);
-	};
 	vector<string>& Get_usersnames() { return Usernames; };
+	void SetWidth(int time, int width, string name) { WidthNeed.resize(time+1); WidthNeed[time][name] = width; }
+	int GetWidth(int time, string name) {
+		return WidthNeed[time][name];
+	}
+	void PushName(string name) { Usernames.push_back(name); };
 };
 
 class NodeManage
@@ -115,28 +88,19 @@ class NodeManage
 private:
 	//所有用户节点
 	vector<string> Nodenames;
-	//不同时刻下的节点
-	vector<unordered_map<string, Node*>> Time_Node;
 	//存储目标节点下的可用用户名称
 	unordered_map<string, vector<bool>> UsefulUser_flag;
+	//存储node的带宽
+	unordered_map<string, int> Node_Width;
 public: 
-	Node* GetNode(string& name,int time) { return Time_Node[time][name]; };
-	//获取该时刻下的所有节点
-	unordered_map<string, Node*>* GetNodeMap(int time) { return &Time_Node[time]; };
-	void InitTimes(int time) { Time_Node.resize(time); };
-	void Append_Node(Node* node, string name) 
-	{ 
-		for (int i = 0; i < Time_Node.size(); i++)
-		{
-			Node* time_node = new Node;
-			*time_node = *node;
-			Time_Node[i][name] = time_node;
-		}
-		Nodenames.push_back(name);
-	};
 	vector<string>& Get_Nodenames() { return Nodenames; };
 	void AddNode_Usefuluser(string nodename, bool flag) { UsefulUser_flag[nodename].push_back(flag); };
 	vector<bool>& Get_UsefulUser(string nodename) { return UsefulUser_flag[nodename]; };
+	void SetWidth(string name, int width) { Node_Width[name] = width; };
+	int GetWidth(string name) {
+		return Node_Width[name];
+	}
+	void PushName(string name) { Nodenames.push_back(name); };
 };
 
 
@@ -325,6 +289,7 @@ void DealOneAlg(int Min_time, int Max_time, UserManage * Um, NodeManage *Nm)
 	//行头 用户所需带宽
 	//列头 Node所拥有的带宽
 
+	ofstream outfile(file_output) ;
 
 	//初始化矩阵分配数值 不能分配为-1
 	for (int i = 0; i < Nodenames.size(); i++)
@@ -342,19 +307,17 @@ void DealOneAlg(int Min_time, int Max_time, UserManage * Um, NodeManage *Nm)
 	{
 		vector<vector<int>> CountJuTemp = CountJu;
 		//获取当前时刻下的映射
-		unordered_map<string, Node *>* All_Node = Nm->GetNodeMap(i);
-		unordered_map<string, User *>* All_User = Um->GetUserMap(i);
 		
 		for (int i = 1; i < Usernames.size()+1; i++)
 		{
 			
 			//列头
-			CountJuTemp[i][0] = (*All_User)[Usernames[i-1]]->GetNeed_width();
+			CountJuTemp[i][0] = Um->GetWidth(i, Usernames[i-1]);
 		}
 		for (int j = 1; j < Nodenames.size()+1; j++)
 		{
 			//行头
-			CountJuTemp[0][j] = (*All_Node)[Nodenames[j-1]]->GetWidth();
+			CountJuTemp[0][j] = Nm->GetWidth(Nodenames[j-1]);
 		}
 		int Reuslt = 1;
 		while (Reuslt != -1)
@@ -363,11 +326,20 @@ void DealOneAlg(int Min_time, int Max_time, UserManage * Um, NodeManage *Nm)
 			Reuslt = IsEffect(CountJuTemp);
 		}
 		//获得分配结果
+	
 		for (int i = 1; i < CountJuTemp.size(); i++)
 		{
+			outfile << Usernames[i - 1] << ":";
+			string tempdata;
 			for (int j = 1; j < CountJuTemp[i].size(); j++)
-				if(CountJuTemp[i][j] != -1)
-				cout << "用户 :" << Usernames[i - 1] << "   节点 :" << Nodenames[j - 1] << "  分配: " << CountJuTemp[i][j] <<  endl;
+				if (CountJuTemp[i][j] >0 )
+				{
+					tempdata = tempdata + "<" + Nodenames[j - 1] +  "," + to_string(CountJuTemp[i][j]) + ">"+",";
+				}
+			if (tempdata.size() > 0)
+				tempdata.pop_back();
+			outfile << tempdata;
+			outfile << endl;
 		}
 
 	}
@@ -392,31 +364,27 @@ int main()
 	NodeManage* Nm = new NodeManage;
 
 
-	//将不同node user的共同参数初始化
-	unordered_map<string, User*>AllUser;
-	unordered_map<string, Node*>AllNode;
+	
 	//获得需要调度的最大时刻数
 	int Max_times = UserWidths.Datas.size();
 
-	Um->InitTimes(Max_times);
-	Nm->InitTimes(Max_times);
+
 	//初始化用户 
 	for (int i = 1; i < PeopleQos.headName.size(); i++)
 	{
-		User* New_user = new User;
+
 		string username = PeopleQos.headName[i];
-		AllUser[username] = New_user;
+		Um->PushName(username);
 	}
 
 	//初始化node
 	for (int i = 0; i < NodeWidths.Datas.size(); i++)
 	{
-		Node* new_node = new Node;
 		string Nodename = NodeWidths.Datas[i][0];
-		new_node->SetMaxWidth(atoi(NodeWidths.Datas[i][1].c_str()));
-		AllNode[Nodename] = new_node;
+		Nm->PushName(Nodename);
+		int NodeWidth = atoi(NodeWidths.Datas[i][1].c_str());
+		Nm->SetWidth(Nodename, NodeWidth);
 	}
-
 
 
 	//初始化Node可用用户
@@ -437,11 +405,7 @@ int main()
 		}
 	}
 
-	//初始化User管理 和 Node管理
-	for (auto i = AllNode.begin(); i != AllNode.end(); i++)
-		Nm->Append_Node(i->second, i->first);
-	for (auto i = AllUser.begin(); i != AllUser.end(); i++)
-		Um->Append_User(i->second, i->first);
+
 	//初始化用户不同时刻所需带宽
 	for (int time = 0; time < UserWidths.Datas.size(); time++)
 	{
@@ -449,16 +413,16 @@ int main()
 		{
 			string Username = UserWidths.headName[j];
 			//获得该时刻下用户
-			User* this_user = Um->GetUser(Username, time);
 			int width = atoi(UserWidths.Datas[time][j].c_str());
 			//设置该时刻下用户所需带宽
-			this_user->SetNeed_width(width);
+			Um->SetWidth(time, width, Username);
 		}
 	}
 
+	
+
 	//运行调度算法
 	int Min_time = 0;
-
 	DealOneAlg(Min_time, Max_times, Um, Nm);
 	return 1;
 }
