@@ -12,8 +12,6 @@
 using namespace std;
 
 
-
-using namespace std;
 //作品提交路径
 string file_root = "/data/";
 string file_Demand = "demand.csv";
@@ -21,7 +19,6 @@ string file_Bandwidth = "site_bandwidth.csv";
 string file_qos = "qos.csv";
 string file_config = "config.ini";
 string file_output = "/output/solution.txt";
-
 
 
 
@@ -134,7 +131,6 @@ DatasStruct GetData(string filepath)
 	DatasStruct tempData;
 	ifstream infile(filepath);
 	vector<string> data;
-	vector<string> head;
 	bool Head = true;
 	while (infile.good())
 	{
@@ -249,20 +245,25 @@ void AverageChoose(vector<vector<int>> & allc,int user,int node)
 	//如果没有分配完
 	if (allc[user][0] != 0)
 	{
-		for (int j = 1; j < allc[user].size(); j++)
+		for (int j = node; j < allc[user].size(); j++)
 		{
-			//Reset后重新分配
-			Reset(allc, user, j);
-			//对该用户分配
-			AverageChoose(allc, user, j);
-			if (allc[user][0] == 0)
+			if (allc[user][j] > 0)
+			{
+				//Reset后重新分配
+				Reset(allc, user, j);
+				//对该用户分配
+				AverageChoose(allc, user, j);
+				if(allc[user][0] == 0)
 				break;
+			}
 		}
+		return;
 	}
 	//分配完继续下一个
 	else
 	{
-		AverageChoose(allc, user+1, node);
+		AverageChoose(allc, user+1, 1);
+		return;
 	}
 	
 
@@ -308,11 +309,11 @@ void DealOneAlg(int Min_time, int Max_time, UserManage * Um, NodeManage *Nm)
 		vector<vector<int>> CountJuTemp = CountJu;
 		//获取当前时刻下的映射
 		
-		for (int i = 1; i < Usernames.size()+1; i++)
+		for (int k = 1; k < Usernames.size()+1; k++)
 		{
 			
 			//列头
-			CountJuTemp[i][0] = Um->GetWidth(i, Usernames[i-1]);
+			CountJuTemp[k][0] = Um->GetWidth(i, Usernames[k-1]);
 		}
 		for (int j = 1; j < Nodenames.size()+1; j++)
 		{
@@ -347,7 +348,6 @@ void DealOneAlg(int Min_time, int Max_time, UserManage * Um, NodeManage *Nm)
 }
 int main()
 {
-
 	//获取客户宽带需求
 	DatasStruct UserWidths = GetData(file_root + file_Demand);
 
@@ -362,7 +362,6 @@ int main()
 
 	UserManage* Um = new UserManage;
 	NodeManage* Nm = new NodeManage;
-
 
 	
 	//获得需要调度的最大时刻数
@@ -423,6 +422,7 @@ int main()
 
 	//运行调度算法
 	int Min_time = 0;
+
 	DealOneAlg(Min_time, Max_times, Um, Nm);
-	return 1;
+	return 0;
 }
