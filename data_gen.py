@@ -6,9 +6,9 @@ import datetime
 
 
 class file_path():
-    site_bandwidth = './data/site_bandwidth.csv'
-    qos = './data/qos.csv'
-    demand = './data/demand.csv'
+    site_bandwidth = '/data/site_bandwidth.csv'
+    qos = '/data/qos.csv'
+    demand = '/data/demand.csv'
 
 def data_gen(User_count, Edge_count, time_count):
     if User_count > 35 or User_count < 1:
