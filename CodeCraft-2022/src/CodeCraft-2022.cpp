@@ -6,6 +6,8 @@
 #include<sstream>
 #include<map>
 #include<set>
+#include <list>
+#include <random>
 #include<algorithm>
 #include<numeric>
 #include<unordered_map>
@@ -173,7 +175,6 @@ int ReadQos(string filepath)
 //针对一个用户的分配
 void NodeAssign(vector<vector<int>>& allc, int user, int node)
 {
-
 	for (int j = node; j < allc[user].size(); j++)
 	{
 		//如果不能分配
@@ -190,7 +191,6 @@ void NodeAssign(vector<vector<int>>& allc, int user, int node)
 				allc[user][j] += allc[user][0];
 				allc[0][j] -= allc[user][0];
 				allc[user][0] -= allc[user][0];
-
 			}
 			//用户需求大于可分配
 			else
@@ -206,7 +206,6 @@ void NodeAssign(vector<vector<int>>& allc, int user, int node)
 			}
 		}
 	}
-
 }
 //重新分配
 void Reset(vector<vector<int>>& allc, int user, int node)
@@ -277,9 +276,49 @@ int IsEffect(vector<vector<int>>& CountJu)
 	return -1;
 }
 
-
-//时间节点上的分配 
-void DealOneAlg(int Min_time, int Max_time, UserManage* Um, NodeManage* Nm)
+void upgrateUsefulNodeList(vector<vector<int>> &CountJuTemp,vector<int> &data){
+    //跳过第一个列头
+    for (int i = 1; i < data.size() ; ++i) {
+        if(CountJuTemp[0][i] <= 0) data[i] = -1;
+    }
+}
+/**
+ *
+ * @param CountJuTemp
+ * @param data
+ * @param val
+ * @param nodeIndex
+ * @return
+ */
+void averageDis(vector<vector<int>> &CountJuTemp, vector<int>& data,int val,list<int> &nodeIndex){
+    int num = nodeIndex.size();
+    for (int k = 0; k < num; ++k) {
+        int index = nodeIndex.front();
+        if(CountJuTemp[0][index] > val){
+            data[index] +=val;
+            CountJuTemp[0][index] -=val;
+            data[0] -= val;
+            nodeIndex.pop_front();
+        } else {
+            //TODO:如果平均分配到最后都没有分配完，这里没有处理。
+            nodeIndex.pop_front();
+            int nodeWidth = CountJuTemp[0][index];
+            data[0] -= nodeWidth;
+            CountJuTemp[0][index] = 0;
+            averageDis(CountJuTemp,data,2*val-nodeWidth,nodeIndex);
+        }
+    }
+}
+//时间节点上的分配
+/**
+ * 分配算法
+ * @param Min_time
+ * @param Max_time
+ * @param Um
+ * @param Nm
+ * @param Flag =1 均分初始化，0 非均分初始化
+ */
+void DealOneAlg(int Min_time, int Max_time, UserManage* Um, NodeManage* Nm, bool Flag,ofstream &outfile)
 {
 	//初始化计算矩阵
 	vector<string>Usernames = Um->Get_usersnames();
@@ -288,7 +327,6 @@ void DealOneAlg(int Min_time, int Max_time, UserManage* Um, NodeManage* Nm)
 	//行头 用户所需带宽
 	//列头 Node所拥有的带宽
 
-	ofstream outfile(file_output);
 
 	//初始化矩阵分配数值 不能分配为-1
 	for (int i = 0; i < Nodenames.size(); i++)
@@ -302,6 +340,7 @@ void DealOneAlg(int Min_time, int Max_time, UserManage* Um, NodeManage* Nm)
 				CountJu[j+1][i+1] = -1;
 		}
 	}
+	//时间的大循环
 	for (int i = Min_time; i < Max_time; i++)
 	{
 		vector<vector<int>> CountJuTemp = CountJu;
@@ -319,13 +358,34 @@ void DealOneAlg(int Min_time, int Max_time, UserManage* Um, NodeManage* Nm)
 			CountJuTemp[0][j] = Nm->GetWidth(Nodenames[j - 1]);
 		}
 		int Reuslt = 1;
+
+		//均分初始化
+		if(Flag){
+            for (auto &data : CountJuTemp) {
+                if (data == CountJuTemp[0]) continue;
+                //节点更新。
+                upgrateUsefulNodeList(CountJuTemp,data);
+
+                int nodeNum = 0,val =0;
+                list<int> nodeIndex;
+                for (int j = 0;j<data.size();j++) {
+                    if(data[j] == 0){
+                        nodeNum++;
+                        nodeIndex.push_back(j);
+                    }
+                }
+                val = data[0]/nodeNum;
+                averageDis(CountJuTemp,data,val,nodeIndex);
+            }
+		}
+
 		while (Reuslt != -1)
 		{
 			AverageChoose(CountJuTemp, Reuslt, 1);
 			Reuslt = IsEffect(CountJuTemp);
 		}
-		//获得分配结果
 
+		//获得分配结果
 		for (int i = 1; i < CountJuTemp.size(); i++)
 		{
 			outfile << Usernames[i - 1] << ":";
@@ -375,11 +435,11 @@ int main()
 	}
 
 	//初始化node
-	for (int i = 0; i < NodeWidths.Datas.size(); i++)
+	for (auto & Data : NodeWidths.Datas)
 	{
-		string Nodename = NodeWidths.Datas[i][0];
+		string Nodename = Data[0];
 		Nm->PushName(Nodename);
-		int NodeWidth = atoi(NodeWidths.Datas[i][1].c_str());
+		int NodeWidth = atoi(Data[1].c_str());
 		Nm->SetWidth(Nodename, NodeWidth);
 	}
 
@@ -390,11 +450,10 @@ int main()
 		for (int j = 1; j < PeopleQos.Datas[i].size(); j++)
 		{
 			//延迟小于阈值
-			int this_Qos = atoi(PeopleQos.Datas[i][j].c_str());
+			int this_Qos = stoi(PeopleQos.Datas[i][j].c_str());
 			string Nodename = PeopleQos.Datas[i][0];
 			if (this_Qos < qos)
 			{
-
 				Nm->AddNode_Usefuluser(Nodename, true);
 			}
 			else
@@ -403,7 +462,7 @@ int main()
 	}
 
 
-	//初始化用户不同时刻所需带宽
+	//初始用户不同时刻所需化带宽
 	for (int time = 0; time < UserWidths.Datas.size(); time++)
 	{
 		for (int j = 1; j < UserWidths.Datas[time].size(); j++)
@@ -416,11 +475,31 @@ int main()
 		}
 	}
 
+    ofstream outfile(file_output);
 
-
-	//运行调度算法
+    //运行调度算法
 	int Min_time = 0;
+	list<int> Random5;
+	//0-Max_times 随机5个时刻
+    uniform_int_distribution<> values{1,Max_times};
+    random_device rd;
+    for (int k = 0; Random5.size() < 5; ++k) {
+        default_random_engine rng {rd()};
+        int t = values(rng);
+        if(find(Random5.begin(),Random5.end(),t) == Random5.end()){
+            Random5.push_back(t);
+        }
+    }
+    Random5.sort();
 
-	DealOneAlg(Min_time, Max_times, Um, Nm);
+    //95%时刻均分
+    for (int l = 0; l < Random5.size(); ++l) {
+        int end = Random5.front();
+        Random5.pop_front();
+        DealOneAlg(Min_time, end, Um, Nm,false,outfile);
+        DealOneAlg(end,end+1,Um,Nm, true,outfile);
+        Min_time = end+1;
+    }
+
 	return 0;
 }
