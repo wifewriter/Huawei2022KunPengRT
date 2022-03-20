@@ -476,23 +476,25 @@ int main()
 
     //运行调度算法
 	int Min_time = 0;
+	int inter_MIN = (int)Max_times * 0.01;
 	vector<int> Random5;
 	//0-Max_times 随机5个时刻
-    uniform_int_distribution<> values{1,Max_times};
+    uniform_int_distribution<> values{inter_MIN,Max_times};
     random_device rd;
-    for (int k = 0; Random5.size() < 5; ++k) {
+    for (int k = 0,j=0; Random5.size() < 5; ++k) {
         default_random_engine rng {rd()};
         int t = values(rng);
-        if(find(Random5.begin(),Random5.end(),t) == Random5.end()){
+        if(find(Random5.begin(),Random5.end(),t) == Random5.end() and (Random5.empty() or (t-Random5[j]) > inter_MIN)){
             Random5.push_back(t);
+            j++;
         }
     }
     sort(Random5.begin(),Random5.end(),less<int>());
     //95%时刻均分
     for (int l = 0; l < Random5.size(); ++l) {
         int end = Random5[l];
-        DealOneAlg(Min_time, end, Um, Nm,true,outfile);
-        DealOneAlg(end,end+1,Um,Nm, false,outfile);
+        DealOneAlg(Min_time, end-inter_MIN+1, Um, Nm,true,outfile);
+        DealOneAlg(end-inter_MIN+1,end+1,Um,Nm, false,outfile);
         Min_time = end+1;
         if(l == Random5.size()-1){
             //最后一个区间
