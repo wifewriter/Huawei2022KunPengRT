@@ -4,15 +4,10 @@
 #include<string>
 #include<vector>
 #include<sstream>
-#include<map>
 #include<set>
-#include <list>
-#include <random>
 #include<algorithm>
-#include<numeric>
 #include<unordered_map>
 using namespace std;
-
 
 //作品提交路径
 string file_root = "/data/";
@@ -21,9 +16,6 @@ string file_Bandwidth = "site_bandwidth.csv";
 string file_qos = "qos.csv";
 string file_config = "config.ini";
 string file_output = "/output/solution.txt";
-
-
-
 
 //一般数据格式内容
 class DatasStruct {
@@ -290,22 +282,21 @@ void upgrateUsefulNodeList(vector<vector<int>> &CountJuTemp,vector<int> &data){
  * @param nodeIndex
  * @return
  */
-void averageDis(vector<vector<int>> &CountJuTemp, vector<int>& data,int val,list<int> &nodeIndex){
-    int num = nodeIndex.size();
-    for (int k = 0; k < num; ++k) {
-        int index = nodeIndex.front();
-        if(CountJuTemp[0][index] > val){
-            data[index] +=val;
-            CountJuTemp[0][index] -=val;
-            data[0] -= val;
-            nodeIndex.pop_front();
+void averageDis(vector<vector<int>> &CountJuTemp, vector<int>& data,int val,vector<int> &nodeIndex){
+    int temp = val;
+    for (int index : nodeIndex) {
+        if(CountJuTemp[0][index] > temp){
+            data[index] += temp;
+            data[0] -= temp;
+            CountJuTemp[0][index] -= temp;
+            temp = val;
         } else {
             //TODO:如果平均分配到最后都没有分配完，这里没有处理。
-            nodeIndex.pop_front();
-            int nodeWidth = CountJuTemp[0][index];
-            data[0] -= nodeWidth;
+            int width = CountJuTemp[0][index];
+            data[0] -= width;
+            data[index] = width;
+            temp = val + temp - CountJuTemp[0][index];
             CountJuTemp[0][index] = 0;
-            averageDis(CountJuTemp,data,2*val-nodeWidth,nodeIndex);
         }
     }
 }
@@ -326,7 +317,6 @@ void DealOneAlg(int Min_time, int Max_time, UserManage* Um, NodeManage* Nm, bool
 	vector<vector<int>> CountJu(Usernames.size() + 1, vector<int>(Nodenames.size() + 1));
 	//行头 用户所需带宽
 	//列头 Node所拥有的带宽
-
 
 	//初始化矩阵分配数值 不能分配为-1
 	for (int i = 0; i < Nodenames.size(); i++)
@@ -365,17 +355,24 @@ void DealOneAlg(int Min_time, int Max_time, UserManage* Um, NodeManage* Nm, bool
                 if (data == CountJuTemp[0]) continue;
                 //节点更新。
                 upgrateUsefulNodeList(CountJuTemp,data);
-
                 int nodeNum = 0,val =0;
-                list<int> nodeIndex;
-                for (int j = 0;j<data.size();j++) {
+                vector<int> nodeIndex;
+                for (int j = 1;j <= data.size();j++) {
                     if(data[j] == 0){
                         nodeNum++;
                         nodeIndex.push_back(j);
                     }
                 }
+                if(nodeNum == 0) continue;
                 val = data[0]/nodeNum;
+                if(val == 0) continue;
+                if(val == 3589){
+                    int a =0;
+                }
                 averageDis(CountJuTemp,data,val,nodeIndex);
+                if(data[0] < 0){
+                    int a =0;
+                }
             }
 		}
 
@@ -399,11 +396,11 @@ void DealOneAlg(int Min_time, int Max_time, UserManage* Um, NodeManage* Nm, bool
 				tempdata.pop_back();
 			outfile << tempdata;
 			outfile << endl;
-		}
-
+        }
 	}
 	return;
 }
+
 int main()
 {
 	//获取客户宽带需求
@@ -479,7 +476,7 @@ int main()
 
     //运行调度算法
 	int Min_time = 0;
-	list<int> Random5;
+	vector<int> Random5;
 	//0-Max_times 随机5个时刻
     uniform_int_distribution<> values{1,Max_times};
     random_device rd;
@@ -490,15 +487,17 @@ int main()
             Random5.push_back(t);
         }
     }
-    Random5.sort();
-
+    sort(Random5.begin(),Random5.end(),less<int>());
     //95%时刻均分
     for (int l = 0; l < Random5.size(); ++l) {
-        int end = Random5.front();
-        Random5.pop_front();
-        DealOneAlg(Min_time, end, Um, Nm,false,outfile);
-        DealOneAlg(end,end+1,Um,Nm, true,outfile);
+        int end = Random5[l];
+        DealOneAlg(Min_time, end, Um, Nm,true,outfile);
+        DealOneAlg(end,end+1,Um,Nm, false,outfile);
         Min_time = end+1;
+        if(l == Random5.size()-1){
+            //最后一个区间
+            DealOneAlg(Min_time,Max_times,Um,Nm, true,outfile);
+        }
     }
 
 	return 0;
