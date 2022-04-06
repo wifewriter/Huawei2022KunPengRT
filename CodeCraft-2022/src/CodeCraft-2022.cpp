@@ -22,17 +22,22 @@ private:
 	vector<string> Usernames;
     //不同时刻用户所需带宽
     vector<unordered_map<string, int>> WidthNeed;
+    vector<unordered_map<string,int>> widthNeedCopy;
     //每个用户名对应的可使用的节点数目
     unordered_map<string,int> userToNodeNum;
 public:
     vector<string>& Get_usersnames() { return Usernames; };
 	void SetWidth(int time, int width, const string& name) { WidthNeed.resize(time + 1); WidthNeed[time][name] = width; }
+	void SetWidthCopy(int time, int width, const string& name) { widthNeedCopy.resize(time + 1); widthNeedCopy[time][name] = width; }
 	int GetWidth(int time, const string& name) {
 		return WidthNeed[time][name];
 	}
 	void PushName(const string& name) { Usernames.push_back(name); };
     vector<unordered_map<string, int>>& getWidthNeed(){
         return this->WidthNeed;
+    }
+    vector<unordered_map<string, int>>& getWidthNeedCopy(){
+        return this->widthNeedCopy;
     }
     vector<string>& getUserNames(){
         return this->Usernames;
@@ -62,6 +67,10 @@ private:
 	unordered_map<string, int> Node_Width;
 	//存储节点的载荷序列 前5%大 和 时间
 	unordered_map<string ,vector<vector<int>>> payload_List_map;
+	//存储节点对应的最大fireOut次数
+	unordered_map<string,int> Node_Times_Map;
+    //存储已经遍历过的Node节点
+    vector<string> springNodeList;
 public:
 	vector<string>& Get_Nodenames() { return Nodenames; };
 	void AddNode_Usefuluser(string nodename, bool flag) { UsefulUser_flag[nodename].push_back(flag); };
@@ -79,6 +88,79 @@ public:
     int getNameToIndexMap(const string &name){
         return this->nameToIndexMap[name];
     }
+    void setNodeTimesMap(const string &nodeName,int &times){
+        this->Node_Times_Map[nodeName] = times;
+    }
+
+
+    //获取一个全力输出的节点
+    string getOneFireOutNode(int timeIndex,vector<unordered_map<string,int>>& widthNeed,vector<string>& userNames,string &preNode){
+        if(preNode.empty()){
+            this->springNodeList.clear();
+            //空，每个时刻开始时的初始节点
+            for (auto &i : this->payload_List_map) {
+                for (auto &j:i.second) {
+                    if(j[0] <= 0) break;
+                    if(j[1] == timeIndex){
+                        //找到Node ,加入遍历过的节点当中，同时减少输出次数
+                        this->springNodeList.push_back(i.first);
+                        preNode = i.first;
+                        this->Node_Times_Map[i.first] -=1;
+                        return i.first;
+                    }
+                }
+            }
+        } else{
+           //先更新payload_List_map。 再取节点,
+           //第一步，用替换的widthNeed更新
+            for (auto &i :this->UsefulUser_flag) {
+                vector<vector<int>> totalPayload;
+                for (int k = timeIndex;k<widthNeed.size();k++) {
+                    int perNodeSum = 0;
+                    for (int j = 0; j <widthNeed[k].size() ; ++j) {
+                        if(i.second[j] == 1){
+                            perNodeSum += widthNeed[k][userNames[j]];
+                        }
+                    }
+                    totalPayload.push_back(vector<int>{perNodeSum,k});
+                }
+                sort(totalPayload.begin(),totalPayload.end(),greater<vector<int>>());
+                //获取还剩下的次数
+                int interval = this->Node_Times_Map[i.first];
+
+                //一个节点
+                if(interval <= 0){
+                    this->payload_List_map[i.first] = vector<vector<int >>{{0}};
+                } else{
+                    if(interval >= totalPayload.size()){
+                        interval = totalPayload.size();
+                    }if(!totalPayload.empty()){
+                        this->payload_List_map[i.first] = vector<vector<int >>(totalPayload.begin(),totalPayload.begin()+interval-1);
+                    } else{
+                        this->payload_List_map[i.first] = vector<vector<int >>{{0}};
+                    }
+                }
+            }
+            //第二步，更新后再获取当前时刻应该输出的节点
+            for (auto &i : this->payload_List_map) {
+                for (auto &j:i.second) {
+                    if(j[0] <= 0) break;
+                    auto k = find(this->springNodeList.begin(),this->springNodeList.end(),i.first) = this->springNodeList.end();
+                    //必须得未找到。
+                    if(j[1] == timeIndex and k == this->springNodeList.end()){
+                        //找到Node ,加入遍历过的节点当中，同时减少输出次数
+                        this->springNodeList.push_back(i.first);
+                        preNode = i.first;
+                        this->Node_Times_Map[i.first] -= 1;
+                        return i.first;
+                    }
+                }
+            }
+        }
+        //没有找到任何节点
+        return "";
+    }
+
 };
 //获取前5%大。
 void NodeManage::GetPre5percentPayloadList(vector<unordered_map<string, int>> &widthNeed,vector<string>& userNames,int max){
@@ -97,7 +179,6 @@ void NodeManage::GetPre5percentPayloadList(vector<unordered_map<string, int>> &w
         //一个节点
         this->payload_List_map[i.first] = vector<vector<int >>(totalPayload.begin(),totalPayload.begin()+max*0.05);
     }
-
 }
 //TODO:这里由于矩阵前有一列头，这里下标索引需要+1；
 void NodeManage::setNameToIndexMap() {
@@ -318,6 +399,7 @@ int main()
 
 	//获得需要调度的最大时刻数
 	int Max_times = UserWidths.Datas.size();
+	int numMaxTimes = Max_times*0.04;
 	//初始化用户 
 	for (int i = 1; i < PeopleQos.headName.size(); i++)
 	{
@@ -343,6 +425,7 @@ int main()
 			string Nodename = PeopleQos.Datas[i][0];
             Nm->AddNode_Usefuluser(Nodename, this_Qos < qos);
 		}
+		Nm->setNodeTimesMap(PeopleQos.Datas[i][0],numMaxTimes);
 	}
 	//初始用户不同时刻所需化带宽
 	for (int time = 0; time < UserWidths.Datas.size(); time++)
@@ -354,6 +437,7 @@ int main()
 			int width = stoi(UserWidths.Datas[time][j].c_str());
 			//设置该时刻下用户所需带宽
 			Um->SetWidth(time, width, Username);
+			Um->SetWidthCopy(time,width,Username);
 		}
 	}
 	//更新每个节点的分配矩阵
@@ -400,45 +484,46 @@ int main()
             CountJuTemp[0][j] = Nm->GetWidth(Nodenames[j - 1]);
         }
         //判断当前时间点哪些node需要“全力输出”，其余node尽可能少
-        for (auto &l : Nm->getPayLoadListMap()) {
-            for (auto &k : l.second ) {
-                if(k[0] <= 0) break;
-                if(k[1] == i){
-                    //当前节点为fireOut节点、尽可能全力分配载荷下去。
-                    int colIndex = Nm->getNameToIndexMap(l.first); //获取列下标
-                    //获取能分配用户节点的所有矩阵下标
-                    vector<int > userVector{};
-                    for (int j = 0; j <CountJuTemp.size() ; ++j) {
-                        if(CountJuTemp[j][colIndex] == 0){
-                            userVector.push_back(j);
-                        }
-                    }
-                    //对能分配的所有节点进行分配排序。用户节点对应的Node越少越优先分配，目的保证用户节点能分配完。
-                    //注意这里的Um->getUserNames()返回是从0开始，但是userVector是从1开始编号，所以要减去1；
-                    sort(userVector.begin(),userVector.end(),[=,&Um](int &x,int &y){
-                        string name_x = Um->getUserNames()[x-1];
-                        string name_y = Um->getUserNames()[y-1];
-                        return Um->getUserToNodeNum(name_x) <= Um->getUserToNodeNum(name_y);
-                    });
+        string preNode;
+        auto l = Nm->getOneFireOutNode(i, Um->getWidthNeedCopy(), Um->getUserNames(),preNode);
+        for (; !l.empty();l = Nm->getOneFireOutNode(i, Um->getWidthNeedCopy(), Um->getUserNames(),preNode)) {
 
-                    for(auto &m : userVector){
-                        if(CountJuTemp[m][0] < CountJuTemp[0][colIndex]){
-                            //分配完 需求小于总量
-                            CountJuTemp[m][colIndex] += CountJuTemp[m][0];
-                            CountJuTemp[0][colIndex] -= CountJuTemp[m][0];
-                            CountJuTemp[m][0] = 0;
-                        } else{
-                            //需求大于总量
-                            CountJuTemp[m][colIndex] += CountJuTemp[0][colIndex];
-                            CountJuTemp[m][0] -= CountJuTemp[0][colIndex];
-                            CountJuTemp[0][colIndex] = 0;
-                        }
-                        if(CountJuTemp[0][colIndex] <=0) break;//没得分配退出。
-                    }
+            //当前节点为fireOut节点、尽可能全力分配载荷下去。
+            int colIndex = Nm->getNameToIndexMap(l); //获取列下标
+            //获取能分配用户节点的所有矩阵下标
+            vector<int> userVector{};
+            for (int j = 0; j < CountJuTemp.size(); ++j) {
+                if (CountJuTemp[j][colIndex] == 0) {
+                    userVector.push_back(j);
                 }
+            }
+            //对能分配的所有节点进行分配排序。用户节点对应的Node越少越优先分配，目的保证用户节点能分配完。
+            //注意这里的Um->getUserNames()返回是从0开始，但是userVector是从1开始编号，所以要减去1；
+            sort(userVector.begin(), userVector.end(), [=, &Um](int &x, int &y) {
+                string name_x = Um->getUserNames()[x - 1];
+                string name_y = Um->getUserNames()[y - 1];
+                return Um->getUserToNodeNum(name_x) <= Um->getUserToNodeNum(name_y);
+            });
+
+            for (auto &m : userVector) {
+                if (CountJuTemp[m][0] < CountJuTemp[0][colIndex]) {
+                    //分配完 需求小于总量
+                    CountJuTemp[m][colIndex] += CountJuTemp[m][0];
+                    CountJuTemp[0][colIndex] -= CountJuTemp[m][0];
+                    CountJuTemp[m][0] = 0;
+                } else {
+                    //需求大于总量
+                    CountJuTemp[m][colIndex] += CountJuTemp[0][colIndex];
+                    CountJuTemp[m][0] -= CountJuTemp[0][colIndex];
+                    CountJuTemp[0][colIndex] = 0;
+                }
+                //更新分配矩阵
+                Um->getWidthNeedCopy()[i][Um->getUserNames()[m-1]] -= CountJuTemp[m][colIndex];
+                if (CountJuTemp[0][colIndex] <= 0) break;//没得分配退出。
             }
         }
         //其余不是fireOut节点进行均分处理
+
         for (auto &data : CountJuTemp) {
             if (data == CountJuTemp[0] or data[0] == 0) continue;
             //节点更新。
@@ -479,6 +564,8 @@ int main()
             outfile << tempdata;
             outfile << endl;
         }
+//        Um->getWidthNeedCopy()[i] = {pair<string,int>("",0)};
+//        cout<<"num:"<<i<<endl;
     }
     outfile.close();
 
